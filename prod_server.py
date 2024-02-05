@@ -22,24 +22,24 @@ from fastapi.routing import APIRoute
 
 import gc
 
-class TimedRoute(APIRoute):
-    def get_route_handler(self) -> Callable:
-        original_route_handler = super().get_route_handler()
-        async def custom_route_handler(request: Request) -> Response:
-            before = time.time()
-            response: Response = await original_route_handler(request)
+#class TimedRoute(APIRoute):
+#    def get_route_handler(self) -> Callable:
+#        original_route_handler = super().get_route_handler()
+#        async def custom_route_handler(request: Request) -> Response:
+#            before = time.time()
+#            response: Response = await original_route_handler(request)
 
      
-            current_datetime = datetime.now()
-            str_current_datetime = current_datetime.strftime("%Y-%m-%d %H-%M-%S")
+#            current_datetime = datetime.now()
+#            str_current_datetime = current_datetime.strftime("%Y-%m-%d %H-%M-%S")
 
-            duration = time.time() - before
-            response.headers["X-Response-Time"] = str(duration)
+#            duration = time.time() - before
+#            response.headers["X-Response-Time"] = str(duration)
           
-            #print(str_current_datetime, request.url.scheme, request.method, request.url.path, request.query_params, f'{request.client.host}:{request.url.port}', duration)
+#            #print(str_current_datetime, request.url.scheme, request.method, request.url.path, request.query_params, f'{request.client.host}:{request.url.port}', duration)
             
-            return response
-        return custom_route_handler
+#            return response
+#        return custom_route_handler
 
 
 
@@ -50,7 +50,7 @@ register_heif_opener()
 import prod #в этом  файле хранятся все процедуры
 
 app = FastAPI()
-router = APIRouter(route_class=TimedRoute) #ЭТО ДЛЯ РОУТЕРА
+#router = APIRouter(route_class=TimedRoute) #ЭТО ДЛЯ РОУТЕРА
 #ПОЛУЧЕНИЕ ТОЛЬКО КАРТИНКИ. ОТВЕТ json
 keys = ['hard', 'control', 'sexy']
 wrong = {'need_moderation': 3, 'net1': {'hard': 0.0, 'control': 0.0, 'sexy': 0.0}, 'net2': {'hard': 0.0, 'control': 0.0, 'sexy': 0.0}}
@@ -61,19 +61,25 @@ class Base2(BaseModel):
     classify: Optional[int] = 1    #необходима классификация  изображений
 
 
-@router.post("/ps")
-async def analyze_image(image: UploadFile = File(...)):
+@app.post("/ps")
+async def analyze_image1(image: UploadFile = File(...)):
+#async def analyze_image(image: UploadFile = File(...)):
+
 
 #async def analyze_image(base: Base2 = Depends(), image: UploadFile = File(...)):
     #print('имя файла',image.filename)
     #image_type = imghdr.what(image.file)
     #if image_type or image.filename.lower().endswith('heic'):
     if True : #тут можно проверить изображение ли это вообще...см.строку выше
-     
         with Image.open(BytesIO(await image.read())) as img:
+            #print('ТУТ')
+            #print("width", img.width, "height", img.height)
+            #print('ТУТ2')
             if img.mode != 'RGB':
                 img = img.convert("RGB")
             #try:
+            #return 1
+            #print('тут3')
             pok = prod.look_to_file(img)#отправляем изображение и то, что требуется вернуть
             #except:
              #   pok = wrong
@@ -127,4 +133,4 @@ async def not_use():
    
     return txt
 
-app.include_router(router)
+#app.include_router(router)

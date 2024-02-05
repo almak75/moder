@@ -158,10 +158,16 @@ inference_preprocessing3 = transforms.Compose([ ResizeAndPad(266, 14),
 
 
 def get_predict_from_model(img, model, preprocess):
+    #print('1')
     img_tensor = preprocess(img)
+    #print('2')
     img_tensor = img_tensor.unsqueeze(0)
+    #print('3',device)
     input_tensor = img_tensor.to(device)
-    embeddings = model.transformer(input_tensor)
+    #print('4')
+    #embeddings = model.transformer(input_tensor)
+    embeddings = model.transformer(img_tensor) #похоже, что модель сама копирует в гпу?
+    #print('5')
     x = model.transformer.norm(embeddings)
     output_tensor = model.classifier(x)
     probabilities = torch.softmax(output_tensor, dim=1)
@@ -175,8 +181,11 @@ def get_predict_from_model(img, model, preprocess):
 
 
 def look_to_file(img):
+    #print('тут 4')
     r1 = get_predict_from_model(img, model1, inference_preprocessing1)
+    #print('тут 5')
     r2 = get_predict_from_model(img, model2, inference_preprocessing3)
+    #print('тут 6')
     
     #img = Image.open(file) 
     #img_tensor = inference_preprocessing(img)
