@@ -62,7 +62,9 @@ class Base2(BaseModel):
 
 
 @router.post("/ps")
-async def analyze_image(base: Base2 = Depends(), image: UploadFile = File(...)):
+async def analyze_image(image: UploadFile = File(...)):
+
+#async def analyze_image(base: Base2 = Depends(), image: UploadFile = File(...)):
     #print('имя файла',image.filename)
     #image_type = imghdr.what(image.file)
     #if image_type or image.filename.lower().endswith('heic'):
@@ -72,7 +74,7 @@ async def analyze_image(base: Base2 = Depends(), image: UploadFile = File(...)):
             if img.mode != 'RGB':
                 img = img.convert("RGB")
             try:
-                pok = prod.look_to_file(img,base.dict())#отправляем изображение и то, что требуется вернуть
+                pok = prod.look_to_file(img)#отправляем изображение и то, что требуется вернуть
             except:
                 pok = wrong
                 #print(pok)

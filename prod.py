@@ -174,7 +174,7 @@ def get_predict_from_model(img, model, preprocess):
 
 
 
-def look_to_file(img, param):
+def look_to_file(img):
     r1 = get_predict_from_model(img, model1, inference_preprocessing1)
     r2 = get_predict_from_model(img, model2, inference_preprocessing3)
     
