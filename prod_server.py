@@ -73,10 +73,10 @@ async def analyze_image(image: UploadFile = File(...)):
         with Image.open(BytesIO(await image.read())) as img:
             if img.mode != 'RGB':
                 img = img.convert("RGB")
-            try:
-                pok = prod.look_to_file(img)#отправляем изображение и то, что требуется вернуть
-            except:
-                pok = wrong
+            #try:
+            pok = prod.look_to_file(img)#отправляем изображение и то, что требуется вернуть
+            #except:
+             #   pok = wrong
                 #print(pok)
 			
 			#можно сохранить полученное изображение в arh
