@@ -1,25 +1,25 @@
 
-
-import random
+#from transformers import AutoImageProcessor,AutoModel, Dinov2ForImageClassification
+#import random
 #import zipfile
-from copy import deepcopy
+#from copy import deepcopy
 #from pathlib import Path
 #import matplotlib.pyplot as plt
 #import numpy as np
 import torch
-from PIL import Image
+import asyncio
+#from PIL import Image
 from torch import nn
 #from torch import optim
 
 import warnings
 warnings.filterwarnings('ignore', category=UserWarning)
 from torchvision import transforms
-#from torchvision import datasets
 
-import time
+#import time
 #from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torchvision.transforms import v2
-import os
+#import os
 #import pandas as pd
 #import numpy as np
 #import matplotlib.pyplot as plt
@@ -41,7 +41,7 @@ import os
 #модель 3.
 #BASE 
 #обучена на 20000 на класса  266х266
-#точность 97.09 минимальный лосс 0.08456  !!!!!!!!!!!!!!!!!!!!!!!
+#точность 97.09 минимальный лосс 0.08456  
 #классификатор
 #self.classifier = nn.Sequential(nn.Linear(self.embedding_size, 256), nn.ReLU(), nn.Dropout(0.1),  nn.Linear(256, len(class_names))) 
 
@@ -49,10 +49,11 @@ import os
 
 
 
-#device = 'cpu'
 
-device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
+#device = 'cpu'
 print('ВНИМАНИЕ!!! Обрабатываеться будет всё на ',device, '<<<<<<<<<<<<<----------------')
+
 
 cls = {0:'hard',1 :'control', 2:'sexy'}
 dinov2 = torch.hub.load('facebookresearch/dinov2', 'dinov2_vits14_lc')
@@ -69,19 +70,17 @@ class DinoVisionTransformerClassifier(nn.Module):
         n_register_tokens = 4
 
         if model_size == "small":
-            model = vit_small(patch_size=14,
+            self.transformer = vit_small(patch_size=14,
                               img_size=526,
                               init_values=1.0,
                               num_register_tokens=n_register_tokens,
                               block_chunks=0)
             self.embedding_size = 384
             self.number_of_heads = 6
-            #model.load_state_dict(torch.load('models/dinov2_vits14_reg4_pretrain.pth',map_location=torch.device('cpu')))
-            self.transformer = deepcopy(model)
             self.classifier = nn.Sequential(nn.Linear(self.embedding_size, 32), nn.ReLU(), nn.Dropout(0.1),  nn.Linear(32, 3)) #nn.Dropout(0.2),
 
         elif model_size == "base":
-            model = vit_base(patch_size=14,
+            self.transformer = vit_base(patch_size=14,
                              img_size=526,
                              init_values=1.0,
                              num_register_tokens=n_register_tokens,
@@ -90,11 +89,9 @@ class DinoVisionTransformerClassifier(nn.Module):
                             )
             self.embedding_size = 768
             self.number_of_heads = 12
-            self.transformer = deepcopy(model)
+            
             self.classifier = nn.Sequential(nn.Linear(self.embedding_size, 256), nn.ReLU(), nn.Dropout(0.1),  nn.Linear(256, 3))
-
-            #model.load_state_dict(torch.load('models/dinov2_vitb14_reg4_pretrain.pth'))
-
+            
         
 
         
@@ -105,12 +102,13 @@ class DinoVisionTransformerClassifier(nn.Module):
         x = self.transformer.norm(x)
         x = self.classifier(x)
         return x
-model1 = DinoVisionTransformerClassifier("small")
-#model2 = DinoVisionTransformerClassifier("small")
-model2 = DinoVisionTransformerClassifier("base")
+
+
+model1 = DinoVisionTransformerClassifier("small").to(device)
+model2 = DinoVisionTransformerClassifier("base").to(device)
+
 
 model1.load_state_dict(torch.load('model1.pth', map_location=torch.device(device)))
-#model2.load_state_dict(torch.load('model2.pth', map_location=torch.device(device)))
 model2.load_state_dict(torch.load('model3.pth', map_location=torch.device(device)))
 
 
@@ -144,11 +142,11 @@ inference_preprocessing1 = transforms.Compose([ ResizeAndPad(256, 14),
                                                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
                                              ]
                                             )
-inference_preprocessing2 = transforms.Compose([ ResizeAndPad(320, 14),
-                                               transforms.ToTensor(),
-                                               transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
-                                             ]
-                                            )
+#inference_preprocessing2 = transforms.Compose([ ResizeAndPad(320, 14),
+#                                               transforms.ToTensor(),
+#                                               transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+#                                             ]
+#                                            )
 
 inference_preprocessing3 = transforms.Compose([ ResizeAndPad(266, 14),
                                                transforms.ToTensor(),
@@ -157,49 +155,78 @@ inference_preprocessing3 = transforms.Compose([ ResizeAndPad(266, 14),
                                             )
 
 
-def get_predict_from_model(img, model, preprocess):
-    #print('1')
-    img_tensor = preprocess(img)
-    #print('2')
-    img_tensor = img_tensor.unsqueeze(0)
-    #print('3',device)
-    input_tensor = img_tensor.to(device)
-    #print('4')
-    #embeddings = model.transformer(input_tensor)
-    embeddings = model.transformer(img_tensor) #похоже, что модель сама копирует в гпу?
-    #print('5')
-    x = model.transformer.norm(embeddings)
-    output_tensor = model.classifier(x)
-    probabilities = torch.softmax(output_tensor, dim=1)
-    predicted_classes = torch.argmax(probabilities, dim=1)
 
-    c = int(predicted_classes[0])
+
+async def get_predict_from_model(img, model, preprocess, name):
+    #print('name',name)
+    
+    img_tensor = preprocess(img)
+    img_tensor = img_tensor.unsqueeze(0)
+    input_tensor = img_tensor.to(device)
+    #if name == 1:
+    #    await asyncio.sleep(10)
+    with  torch.no_grad(): 
+        embeddings = model.transformer(input_tensor) 
+        x = model.transformer.norm(embeddings)
+        output_tensor = model.classifier(x)
+        probabilities = torch.softmax(output_tensor, dim=1)
+    
+        
+    #predicted_classes = torch.argmax(probabilities, dim=1)
+    #case = int(predicted_classes[0])
     
     rez = dict(zip(cls.values(), probabilities.flatten().tolist()))
     return  rez
 
-
-
-def look_to_file(img):
-    #print('тут 4')
-    r1 = get_predict_from_model(img, model1, inference_preprocessing1)
-    #print('тут 5')
-    r2 = get_predict_from_model(img, model2, inference_preprocessing3)
-    #print('тут 6')
+#def get_predict_from_model_SIMPLE(img, model, preprocess):
+#    #print('name',name)
     
-    #img = Image.open(file) 
-    #img_tensor = inference_preprocessing(img)
-    #img_tensor = img_tensor.unsqueeze(0)
-    #input_tensor = img_tensor.to(device)
-    #embeddings = model.transformer(input_tensor)
-    #x = model.transformer.norm(embeddings)
-    #output_tensor = model.classifier(x)
-    #probabilities = torch.softmax(output_tensor, dim=1)
-    #predicted_classes = torch.argmax(probabilities, dim=1)
-
-    #c = int(predicted_classes[0])
+#    img_tensor = preprocess(img)
+#    img_tensor = img_tensor.unsqueeze(0)
+#    input_tensor = img_tensor.to(device)
+#    with  torch.no_grad(): 
+#        embeddings = model.transformer(input_tensor) 
+#        x = model.transformer.norm(embeddings)
+#        output_tensor = model.classifier(x)
+#        probabilities = torch.softmax(output_tensor, dim=1)
     
-    #rez = dict(zip(cls.values(), probabilities.flatten().tolist()))
+        
+#    #predicted_classes = torch.argmax(probabilities, dim=1)
+#    #case = int(predicted_classes[0])
+    
+#    rez = dict(zip(cls.values(), probabilities.flatten().tolist()))
+#    return  rez
+
+
+
+
+async def look_to_file(img):
+    
+
+
+    #ВАРИАНТ 1. АСИНХОННОСТЬ ЧЕРЕЗ ТАСКУ
+    ##r1 = get_predict_from_model(img, model1, inference_preprocessing1)
+    #task1 = asyncio.create_task(get_predict_from_model(img, model1, inference_preprocessing1,1))
+    ##r2 = get_predict_from_model(img, model2, inference_preprocessing3)
+    #task2 = asyncio.create_task(get_predict_from_model(img, model2, inference_preprocessing1,2))
+    
+    #r1 = await task1
+    #r2 = await task2
+    
+    #ВАРИАНТ 2. АССИНХРОННОСТЬ ЧЕРЕЗ ГАДА
+    r1, r2 = await asyncio.gather(
+       get_predict_from_model(img, model1, inference_preprocessing1,1),
+       get_predict_from_model(img, model2, inference_preprocessing3,2)
+    )
+
+    #ВАРИАНТ 3. ВООБЩЕ БЕЗ АСИНХРОННОСТИ
+    #r1 = get_predict_from_model_SIMPLE(img, model1, inference_preprocessing1)
+    #r2 = get_predict_from_model_SIMPLE(img, model2, inference_preprocessing3)
+
+    #print('r1', r1)
+    #print('r2', r2)
+
+
     if (r1['sexy'] > 0.85) & (r2['sexy'] > 0.85):
         need_moderation = 0
     else:
