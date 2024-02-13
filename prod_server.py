@@ -1,13 +1,12 @@
 #from fastapi import FastAPI, File, UploadFile,Form,  Depends
-from xml.dom import WrongDocumentErr
+#from xml.dom import WrongDocumentErr
 from fastapi import FastAPI, File, UploadFile
 
-from typing import Optional
+#from typing import Optional
 from PIL import Image
 from io import BytesIO
-from pydantic import BaseModel#это понадобилось для втрого варианта
+#from pydantic import BaseModel#это понадобилось для втрого варианта
 #нужно для работы с файлами с айфона
-
 from pillow_heif import register_heif_opener
 
 from datetime import datetime
@@ -18,7 +17,7 @@ import os
 from typing import Callable
 #from fastapi import APIRouter,  Request, Response
 #from fastapi.routing import APIRoute
-
+#import time
 import gc
 #import asyncio
 
@@ -36,12 +35,13 @@ app = FastAPI()
 keys = ['hard', 'control', 'sexy']
 wrong = {'need_moderation': 3, 'net1': {'hard': 0.0, 'control': 0.0, 'sexy': 0.0}, 'net2': {'hard': 0.0, 'control': 0.0, 'sexy': 0.0}}
 
-
+IND = 0
 
 @app.post("/ps")
 async def analyze_image1(image: UploadFile = File(...)):
 #async def analyze_image(image: UploadFile = File(...)):
-
+    global IND
+    IND += 1
 
     #if image_type or image.filename.lower().endswith('heic'):
     if True : #тут можно проверить изображение ли это вообще...см.строку выше
@@ -49,10 +49,11 @@ async def analyze_image1(image: UploadFile = File(...)):
           
             if img.mode != 'RGB':
                 img = img.convert("RGB")
-       
             pok = await  prod.look_to_file(img)#отправляем изображение и то, что требуется вернуть
-      
-        gc.collect() #почистимся 
+        if IND >= 500:
+            IND = 0
+            #print('чисто')
+            gc.collect() #почистимся 
         return pok
     else:
          return None
